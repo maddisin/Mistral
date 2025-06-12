@@ -2,7 +2,9 @@
 * {
   box-sizing: border-box;
 }
-body, html {
+
+body,
+html {
   margin: 0;
   padding: 0;
   background-color: #fff;
@@ -78,10 +80,10 @@ body, html {
 
 /* CAT CONTAINER */
 #cat-container {
-position: relative;
-width: 200px; /* adjust to your actual cat.gif width */
-margin-left: -60px;
-margin-bottom: -3.5px;
+  position: relative;
+  width: 200px;
+  margin-left: -60px;
+  margin-bottom: -3.5px;
 }
 
 #cat-image {
@@ -90,17 +92,22 @@ margin-bottom: -3.5px;
 
 #expression-text {
   position: absolute;
-  top: -10px;               /* adjust so it sits over the cat’s head */
-  left: 110%;
+  top: -10px;
+  left: 130%;
   transform: translateX(-50%);
-  font-size: 36px;         /* large enough to see */
+  font-size: 36px;
   font-weight: bold;
   color: black;
-  text-shadow: 2px 2px 0 #fff; /* white outline for contrast */
-  display: none;           /* hidden by default */
+  text-shadow: 2px 2px 0 #fff;
+  display: none;
   pointer-events: none;
   font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
+
 
 /* ----------------- CHAT BOX ----------------- */
 .chat-box {
@@ -159,12 +166,15 @@ margin-bottom: -3.5px;
   width: 10px;
   color: #000;
 }
+
 .chat-log::-webkit-scrollbar-track {
   background: #f1f1f1;
 }
+
 .chat-log::-webkit-scrollbar-thumb {
   background: #888;
 }
+
 .chat-log::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
@@ -193,9 +203,11 @@ button#sendButton {
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
+
 button#sendButton:hover:not(:disabled) {
   background-color: #eee;
 }
+
 button#sendButton:disabled {
   background-color: #ddd;
   color: #666;
@@ -209,6 +221,7 @@ button#sendButton:disabled {
   margin-bottom: 6px;
   color: #000;
 }
+
 .ai-message {
   font-style: italic;
   margin-bottom: 6px;

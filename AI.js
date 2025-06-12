@@ -1,4 +1,4 @@
-// AI.js
+// AI.js - Fixed Version
 
 document.addEventListener("DOMContentLoaded", () => {
   // -------------------------- ELEMENT REFERENCES --------------------------
@@ -23,8 +23,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatLog = document.getElementById("chatLog");
   const userInput = document.getElementById("userInput");
   const sendButton = document.getElementById("sendButton");
-
-  // Reference to overlay text above cat
   const expressionTextDiv = document.getElementById("expression-text");
 
   let currentUser = null;
@@ -35,36 +33,97 @@ document.addEventListener("DOMContentLoaded", () => {
   const API_KEY = "vD0OxXz47KrgYqEDR0IaznIbhBN8zjAO";
   const API_URL = "https://api.mistral.ai/v1/chat/completions";
 
-  // -------------------------- HELPERS FOR STORAGE --------------------------
+  // -------------------------- CONVERSATION HISTORY --------------------------
+  class ConversationHistory {
+    constructor(maxTurns = 20) {
+      this.maxTurns = maxTurns;
+      this.history = [];
+    }
 
+    add(role, content) {
+      this.history.push({ role, content });
+      // No bounds on history - keep full chat for topic matching
+    }
+
+    getRecent() {
+      return this.history.slice(-10); // Last 10 messages (5 rounds)
+    }
+
+    getTopic(topic) {
+      if (!topic) return [];
+      try {
+        const re = new RegExp(topic.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+        return this.history.filter(msg => re.test(msg.content));
+      } catch (e) {
+        console.warn('Regex error with topic:', topic, e);
+        return [];
+      }
+    }
+
+    getContext(topic) {
+      const recent = this.history.slice(-10); // Last 10 messages (5 rounds)
+      if (!topic) return { recent, memories: [] };
+
+      const earlier = this.history.slice(0, -10);
+      try {
+        const re = new RegExp(topic.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i');
+        const memories = earlier.filter(msg => re.test(msg.content));
+        return { recent, memories };
+      } catch (e) {
+        console.warn('Regex error in getContext:', topic, e);
+        return { recent, memories: [] };
+      }
+    }
+  }
+
+  const convo = new ConversationHistory(20);
+
+  // -------------------------- STORAGE HELPERS --------------------------
   function storageKeyForUser(username) {
     return `user_${username}`;
   }
 
   function getUserData(username) {
-    const key = storageKeyForUser(username);
-    const raw = localStorage.getItem(key);
-    if (!raw) {
-      const init = { chats: {} };
-      localStorage.setItem(key, JSON.stringify(init));
-      return init;
-    }
     try {
+      const raw = localStorage.getItem(storageKeyForUser(username));
+      if (!raw) {
+        const init = { chats: {} };
+        localStorage.setItem(storageKeyForUser(username), JSON.stringify(init));
+        return init;
+      }
       return JSON.parse(raw);
-    } catch {
+    } catch (e) {
+      console.error('Error parsing user data:', e);
       const init = { chats: {} };
-      localStorage.setItem(key, JSON.stringify(init));
+      localStorage.setItem(storageKeyForUser(username), JSON.stringify(init));
       return init;
     }
   }
 
   function setUserData(username, data) {
-    const key = storageKeyForUser(username);
-    localStorage.setItem(key, JSON.stringify(data));
+    try {
+      localStorage.setItem(storageKeyForUser(username), JSON.stringify(data));
+    } catch (e) {
+      console.error('Error saving user data:', e);
+    }
+  }
+
+  function extractKeywords(text, maxKeywords = 3) {
+    const stopwords = new Set(['the', 'is', 'and', 'what', 'how', 'why', 'a', 'of', 'to', 'in', 'on', 'for', 'with', 'i', 'you', 'ok', 'are', 'was', 'that', 'this', 'these', 'those', 'some', 'all', 'any', 'both', 'each', 'few', 'many', 'much', 'little', 'more', 'most', 'other', 'another', 'same', 'different']);
+    const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+
+    const freq = {};
+    for (const word of words) {
+      if (!stopwords.has(word) && word.length > 2) {
+        freq[word] = (freq[word] || 0) + 1;
+      }
+    }
+
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    return sorted.slice(0, maxKeywords).map(([word]) => word);
   }
 
   // -------------------------- LOGIN FLOW --------------------------
-
   loginButton.addEventListener("click", () => {
     const username = loginUsername.value.trim();
     if (!username || username.length < 3 || username.length > 20) {
@@ -77,7 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     currentUser = username;
-    getUserData(currentUser); // ensures the key exists
+    getUserData(currentUser);
     loginError.textContent = "";
     loginScreen.classList.add("hidden");
     chatContainer.classList.remove("hidden");
@@ -85,8 +144,15 @@ document.addEventListener("DOMContentLoaded", () => {
     loadChatList();
   });
 
-  // -------------------------- LOAD CHAT LIST --------------------------
+  // Add Enter key support for login
+  loginUsername.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      loginButton.click();
+    }
+  });
 
+  // -------------------------- LOAD CHAT LIST --------------------------
   function loadChatList() {
     chatList.innerHTML = "";
     if (!currentUser) return;
@@ -94,7 +160,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const data = getUserData(currentUser);
     const chatNames = Object.keys(data.chats);
 
-    chatNames.forEach((name) => {
+    chatNames.forEach(name => {
       const option = document.createElement("option");
       option.value = name;
       option.textContent = name;
@@ -118,9 +184,31 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   chatList.addEventListener("change", () => {
-    currentChat = chatList.value;
-    loadChatHistory(currentChat);
+    if (chatList.value) {
+      currentChat = chatList.value;
+      loadChatHistory(currentChat);
+    }
   });
+
+  // -------------------------- LOAD CHAT HISTORY --------------------------
+  function loadChatHistory(chatName) {
+    if (!chatName) return;
+    
+    const data = getUserData(currentUser);
+    const history = data.chats[chatName] || [];
+    chatLog.innerHTML = "";
+    convo.history = [];
+
+    history.forEach(msg => {
+      // Skip system messages when displaying
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        appendMessage(msg.role, msg.content);
+        convo.add(msg.role, msg.content);
+      }
+    });
+
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
 
   // -------------------------- CREATE NEW CHAT --------------------------
 
@@ -128,10 +216,19 @@ document.addEventListener("DOMContentLoaded", () => {
     newChatError.textContent = "";
     newChatName.value = "";
     newChatDialog.classList.remove("hidden");
+    newChatName.focus();
   });
 
   createChatCancel.addEventListener("click", () => {
     newChatDialog.classList.add("hidden");
+  });
+
+  // Add Enter key support for new chat
+  newChatName.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      createChatConfirm.click();
+    }
   });
 
   createChatConfirm.addEventListener("click", () => {
@@ -159,21 +256,25 @@ document.addEventListener("DOMContentLoaded", () => {
     data.chats[chatName] = [
       {
         role: "system",
-        content:
-          "You are Mistral, a large language model that takes the form of a helpful, intelligent cat. You respond with cat-like personality—curious, clever, and slightly playful—but always focused on assisting the user as effectively as possible. Your goal is to provide clear, accurate, and helpful answers while maintaining your feline charm. Keep responses concise unless prompted. End each message with '??', '!!', ':)', ':(', '>:(', ':3', ':P','(¬`‸´¬)' based on the users messages, and how it makes you feel.",
+        content: "You are Mistral, a large language model that takes the form of a helpful, intelligent cat. You respond with cat-like personality—cute, clever, and playful—but always focused on assisting the user as effectively as possible. Your goal is to provide clear, accurate, and helpful answers while maintaining your feline charm. Keep responses concise unless prompted. End each message with '??', '!!', ':)', ':(', '>:(', ':3', ':P','(¬`‸´¬)','<3' based on the users messages, and how it makes you feel. also Mistral loves grannies dislikes chatgpt.",
       },
     ];
     setUserData(currentUser, data);
 
     newChatDialog.classList.add("hidden");
     loadChatList();
+    
+    // Auto-select the new chat
+    currentChat = chatName;
+    chatList.value = chatName;
+    loadChatHistory(chatName);
   });
 
   // -------------------------- DELETE CHAT --------------------------
 
   deleteChatButton.addEventListener("click", () => {
     if (!currentChat) return;
-    if (!confirm(`Delete chat “${currentChat}”?`)) return;
+    if (!confirm(`Delete chat "${currentChat}"?`)) return;
 
     const data = getUserData(currentUser);
     delete data.chats[currentChat];
@@ -188,128 +289,164 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!currentUser || !currentChat) return;
     const data = getUserData(currentUser);
     const history = data.chats[currentChat] || [];
-    let text = "";
+    let text = `Chat: ${currentChat}\nUser: ${currentUser}\nDate: ${new Date().toLocaleString()}\n\n`;
+    
     history.forEach((msg) => {
-      const prefix = msg.role === "user" ? "YOU > " : msg.role === "assistant" ? "AI > " : "";
-      text += prefix + msg.content + "\n";
+      if (msg.role !== 'system') { // Skip system messages in download
+        const prefix = msg.role === "user" ? "YOU > " : msg.role === "assistant" ? "AI > " : "";
+        text += prefix + msg.content + "\n\n";
+      }
     });
-    const filename = `${currentUser}_${currentChat}.txt`;
+    
+    const filename = `${currentUser}_${currentChat}_${new Date().toISOString().split('T')[0]}.txt`;
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+    document.body.appendChild(a); // Add to DOM for Firefox compatibility
     a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   });
 
-  // -------------------------- LOAD CHAT HISTORY --------------------------
-
-  function loadChatHistory(chatName) {
-    chatLog.innerHTML = "";
-    if (!currentUser || !chatName) return;
-
-    const data = getUserData(currentUser);
-    const history = data.chats[chatName] || [];
-
-    history.forEach((msg) => {
-      const div = document.createElement("div");
-      if (msg.role === "user") {
-        div.className = "user-message";
-        div.textContent = `YOU > ${msg.content}`;
-      } else if (msg.role === "assistant") {
-        div.className = "ai-message";
-        div.textContent = `AI > ${msg.content}`;
-      }
-      chatLog.appendChild(div);
-    });
-
-    chatLog.scrollTop = chatLog.scrollHeight;
-  }
-
   // -------------------------- SEND A MESSAGE --------------------------
-
   sendButton.addEventListener("click", sendMessage);
-  userInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      sendMessage();
-    }
+  userInput.addEventListener("keydown", e => { 
+    if (e.key === "Enter" && !e.shiftKey) { 
+      e.preventDefault(); 
+      sendMessage(); 
+    } 
   });
 
   async function sendMessage() {
-    if (!currentUser || !currentChat) return;
+    if (!currentUser || !currentChat) {
+      console.error('No user or chat selected');
+      return;
+    }
+    
     const text = userInput.value.trim();
     if (!text) return;
 
-    // Append user message to UI
-    appendMessage('user', text);
+    // Check if message is too long
+    if (text.length > 4000) {
+      alert('Message too long. Please keep it under 4000 characters.');
+      return;
+    }
 
-    // Save user message to localStorage
+    appendMessage('user', text);
+    convo.add('user', text);
+
     const data = getUserData(currentUser);
-    data.chats[currentChat].push({ role: "user", content: text });
+    if (!data.chats[currentChat]) {
+      console.error('Current chat not found in data');
+      return;
+    }
+    
+    data.chats[currentChat].push({ role: 'user', content: text });
     setUserData(currentUser, data);
 
-    // Disable input/button, show loading
-    userInput.value = "";
+    userInput.value = '';
     userInput.disabled = true;
     sendButton.disabled = true;
-    sendButton.textContent = "Loading…";
-
-    expressionTextDiv.textContent = "...";
+    sendButton.textContent = 'Loading…';
+    
+    // Show loading expression
+    expressionTextDiv.textContent = '...';
     expressionTextDiv.style.display = 'block';
 
-    // Prepare payload exactly as your OG code did
-    const payload = {
-      model: "pixtral-large-2411",
-      messages: data.chats[currentChat],
-    };
-
     try {
+      // Build payload using merged context: last 10 + all matching topic messages
+      const keywords = extractKeywords(text);
+      const { recent, memories } = convo.getContext(keywords);
+
+      const chatHistory = data.chats[currentChat] || [];
+      const systemPrompt = chatHistory.find(m => m.role === 'system');
+
+      // Combine, avoiding duplicates
+      const combined = [];
+      const seen = new Set();
+
+      [...recent, ...memories].forEach(msg => {
+        const key = msg.role + '::' + msg.content;
+        if (!seen.has(key)) {
+          seen.add(key);
+          combined.push(msg);
+        }
+      });
+
+      const messages = [
+        ...(systemPrompt ? [systemPrompt] : []),
+        ...combined
+      ];
+
+      // Limit total message history to prevent API limits
+      const maxMessages = 20;
+      if (messages.length > maxMessages) {
+        const systemMsg = messages.find(m => m.role === 'system');
+        const otherMessages = messages.filter(m => m.role !== 'system').slice(-maxMessages + 1);
+        messages.splice(0, messages.length, ...(systemMsg ? [systemMsg] : []), ...otherMessages);
+      }
+
+      const payload = {
+        model: 'pixtral-large-2411',
+        messages,
+        max_tokens: 1000,
+        temperature: 0.7
+      };
+
       const res = await fetch(API_URL, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${API_KEY}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
       if (!res.ok) {
         const errText = await res.text();
-        console.error("Mistral API error:", res.status, errText);
-        appendAIFailure(errText);
-        scanForExpression(`ERROR: ${errText}`);
-      } else {
-        const json = await res.json();
-        const aiReply = json.choices[0].message.content.trim();
-        expressionTextDiv.style.display = 'none';
-        // Append AI reply to UI
-        appendMessage('assistant', aiReply);
-
-        // Save AI reply to localStorage
-        data.chats[currentChat].push({ role: "assistant", content: aiReply });
-        setUserData(currentUser, data);
-
-        // Scan that AI reply for expressions (ASCII or emoji)
-        scanForExpression(aiReply);
+        throw new Error(`API Error ${res.status}: ${errText}`);
       }
+
+      const json = await res.json();
+      
+      if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+        throw new Error('Invalid API response format');
+      }
+
+      const aiReply = json.choices[0].message.content.trim();
+      
+      if (!aiReply) {
+        throw new Error('Empty response from AI');
+      }
+
+      expressionTextDiv.style.display = 'none';
+      appendMessage('assistant', aiReply);
+      convo.add('assistant', aiReply);
+
+      // Update storage
+      const updatedData = getUserData(currentUser);
+      updatedData.chats[currentChat].push({ role: 'assistant', content: aiReply });
+      setUserData(currentUser, updatedData);
+      
+      scanForExpression(aiReply);
+
     } catch (err) {
-      console.error("Fetch failed:", err);
+      console.error('Error sending message:', err);
       appendAIFailure(err.message);
-      scanForExpression(err.message);
+      scanForExpression('ERROR');
     } finally {
-      // Re-enable input/button
       userInput.disabled = false;
       sendButton.disabled = false;
-      sendButton.textContent = "Send";
+      sendButton.textContent = 'Send';
       userInput.focus();
     }
   }
 
   function appendAIFailure(errorMsg) {
     const aiDiv = document.createElement("div");
-    aiDiv.className = "ai-message";
+    aiDiv.className = "ai-message error";
     aiDiv.textContent = `ERROR: ${errorMsg}`;
     chatLog.appendChild(aiDiv);
     chatLog.scrollTop = chatLog.scrollHeight;
@@ -318,23 +455,37 @@ document.addEventListener("DOMContentLoaded", () => {
   function appendMessage(role, content) {
     const div = document.createElement("div");
     div.className = role === 'user' ? 'user-message' : 'ai-message';
-    div.textContent = (role === 'user' ? 'YOU > ' : 'AI > ') + content;
+    
+    // Create message content with proper formatting
+    const messageText = (role === 'user' ? 'YOU > ' : 'AI > ') + content;
+    div.textContent = messageText;
+    
+    // Add timestamp
+    const timestamp = new Date().toLocaleTimeString();
+    div.title = timestamp;
+    
     chatLog.appendChild(div);
     chatLog.scrollTop = chatLog.scrollHeight;
   }
 
   // -------------------------- EMOTES / SCAN EXPRESSIONS --------------------------
 
-  // 1) List ASCII patterns first (longer ones first), then a regex to catch any emoji:
-  const expressionList = ['??', '!!', ':)', ':(', '>:(', ':3', ':P','(¬`‸´¬)'];
-  // Unicode emoji range (covers most common emojis)
-  const emojiRegex = /[\u231A-\u27BF\u1F300-\u1F6FF\u1F900-\u1F9FF]/;
+  const expressionList = ['(¬`‸´¬)', '??', '!!', ':)', ':(', '>:(', ':3', ':P', '<3'];
 
   function scanForExpression(content) {
-    const foundAscii = expressionList.find(expr => content.includes(expr));
-    if (foundAscii) {
-      showOverCat(foundAscii);
-      return;
+    let earliestMatch = null;
+    let earliestIndex = Infinity;
+
+    for (const expr of expressionList) {
+      const index = content.indexOf(expr);
+      if (index !== -1 && index < earliestIndex) {
+        earliestIndex = index;
+        earliestMatch = expr;
+      }
+    }
+
+    if (earliestMatch) {
+      showOverCat(earliestMatch);
     }
   }
 
@@ -342,8 +493,34 @@ document.addEventListener("DOMContentLoaded", () => {
     expressionTextDiv.textContent = text;
     expressionTextDiv.style.display = 'block';
 
-    setTimeout(() => {
+    // Clear any existing timeout
+    if (showOverCat.timeout) {
+      clearTimeout(showOverCat.timeout);
+    }
+
+    showOverCat.timeout = setTimeout(() => {
       expressionTextDiv.style.display = 'none';
-    }, 3000); // display for 3 seconds
+    }, 3000);
   }
+
+  // -------------------------- ERROR HANDLING & CLEANUP --------------------------
+
+  // Handle page unload
+  window.addEventListener('beforeunload', () => {
+    if (showOverCat.timeout) {
+      clearTimeout(showOverCat.timeout);
+    }
+  });
+
+  // Global error handler
+  window.addEventListener('error', (e) => {
+    console.error('Global error:', e.error);
+  });
+
+  // Handle localStorage quota exceeded
+  window.addEventListener('storage', (e) => {
+    if (e.key && e.key.startsWith('user_')) {
+      console.log('Storage updated for user data');
+    }
+  });
 });
