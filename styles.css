@@ -1,0 +1,216 @@
+/* ----------------- GLOBAL RESET ----------------- */
+* {
+  box-sizing: border-box;
+}
+body, html {
+  margin: 0;
+  padding: 0;
+  background-color: #fff;
+  font-family: monospace;
+  height: 100vh;
+}
+
+/* ----------------- OVERLAY (login + new chat) ----------------- */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+.hidden {
+  display: none;
+}
+
+.login-box {
+  background-color: #fff;
+  border: 3px solid #000;
+  box-shadow: 8px 8px 0 #000;
+  padding: 20px;
+  width: 300px;
+  text-align: center;
+}
+
+.login-box h2 {
+  margin-bottom: 12px;
+}
+
+.login-box input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  border: 2px solid #000;
+  margin-bottom: 10px;
+}
+
+.login-box button {
+  padding: 8px 16px;
+  border: 2px solid #000;
+  background-color: #fff;
+  cursor: pointer;
+  font-family: monospace;
+  transition: background-color 0.2s ease;
+}
+
+.login-box button:hover:not(:disabled) {
+  background-color: #eee;
+}
+
+.error-message {
+  color: red;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+/* ----------------- MAIN CHAT CONTAINER ----------------- */
+#chatContainer {
+  margin-top: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 30px;
+}
+
+/* CAT CONTAINER */
+#cat-container {
+position: relative;
+width: 200px; /* adjust to your actual cat.gif width */
+margin-left: -60px;
+margin-bottom: -3.5px;
+}
+
+#cat-image {
+  width: 100%;
+}
+
+#expression-text {
+  position: absolute;
+  top: -10px;               /* adjust so it sits over the cat’s head */
+  left: 110%;
+  transform: translateX(-50%);
+  font-size: 36px;         /* large enough to see */
+  font-weight: bold;
+  color: black;
+  text-shadow: 2px 2px 0 #fff; /* white outline for contrast */
+  display: none;           /* hidden by default */
+  pointer-events: none;
+  font-family: 'Courier New', monospace;
+}
+
+/* ----------------- CHAT BOX ----------------- */
+.chat-box {
+  border: 3px solid #000;
+  box-shadow: 10px 10px 0 #000;
+  padding: 20px;
+  width: 660px;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Session controls (select + buttons) */
+.session-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.session-controls select {
+  flex: 1;
+  padding: 8px;
+  border: 2px solid #000;
+  background-color: #fff;
+  font-family: monospace;
+}
+
+.session-controls button {
+  padding: 8px 16px;
+  border: 2px solid #000;
+  background-color: #fff;
+  cursor: pointer;
+  font-family: monospace;
+  transition: background-color 0.2s ease;
+}
+
+.session-controls button:hover:not(:disabled) {
+  background-color: #eee;
+}
+
+/* Always show vertical scrollbar when content overflows */
+.chat-log {
+  height: 300px;
+  overflow-y: auto;
+  border: 2px solid #000;
+  padding: 10px;
+  background-color: #fff;
+  color: #000;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+/* Custom scrollbar styling */
+.chat-log::-webkit-scrollbar {
+  width: 10px;
+  color: #000;
+}
+.chat-log::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+.chat-log::-webkit-scrollbar-thumb {
+  background: #888;
+}
+.chat-log::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Input + send */
+.input-group {
+  display: flex;
+  gap: 10px;
+}
+
+input[type="text"] {
+  flex: 1;
+  padding: 10px;
+  border: 2px solid #000;
+  background-color: #fff;
+  color: #000;
+  font-family: monospace;
+}
+
+button#sendButton {
+  padding: 10px 20px;
+  background-color: #fff;
+  border: 2px solid #000;
+  color: #000;
+  font-family: monospace;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+button#sendButton:hover:not(:disabled) {
+  background-color: #eee;
+}
+button#sendButton:disabled {
+  background-color: #ddd;
+  color: #666;
+  border-color: #666;
+  cursor: not-allowed;
+}
+
+/* Messages */
+.user-message {
+  font-weight: bold;
+  margin-bottom: 6px;
+  color: #000;
+}
+.ai-message {
+  font-style: italic;
+  margin-bottom: 6px;
+  color: #000;
+}

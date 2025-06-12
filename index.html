@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mistral :3</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- LOGIN OVERLAY -->
+  <div id="loginScreen" class="overlay">
+    <div class="login-box">
+      <h2>Retro Chat Login</h2>
+      <input type="text" id="loginUsername" placeholder="Enter a unique username (3–20 chars)" />
+      <button id="loginButton">Login</button>
+      <p id="loginError" class="error-message"></p>
+    </div>
+  </div>
+
+  <!-- MAIN CHAT UI (hidden until login) -->
+  <div id="chatContainer" class="hidden">
+    <!-- CAT + EXPRESSION OVERLAY -->
+    <div id="cat-container" class="top-gif">
+      <img id="cat-image" src="pixilart-drawing-ezgif.com-crop.gif" alt="Cat" />
+      <div id="expression-text"></div>
+    </div>
+
+    <!-- CHAT BOX -->
+    <div class="chat-box">
+      <!-- SESSION CONTROLS -->
+      <div class="session-controls">
+        <select id="chatList"></select>
+        <button id="newChatButton">New Chat</button>
+        <button id="deleteChatButton">Delete Chat</button>
+        <button id="downloadChatButton">Download Log</button>
+      </div>
+
+      <!-- CHAT LOG AREA -->
+      <div id="chatLog" class="chat-log"></div>
+
+      <!-- INPUT + SEND -->
+      <div class="input-group">
+        <input type="text" id="userInput" placeholder="Type your message..." autocomplete="off" />
+        <button id="sendButton">Send</button>
+      </div>
+    </div>
+
+    <!-- NEW CHAT DIALOG (hidden by default) -->
+    <div id="newChatDialog" class="overlay hidden">
+      <div class="login-box">
+        <h2>Create New Chat</h2>
+        <input type="text" id="newChatName" placeholder="Chat name (3–20 chars)" />
+        <button id="createChatConfirm">Create</button>
+        <button id="createChatCancel">Cancel</button>
+        <p id="newChatError" class="error-message"></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="AI.js"></script>
+</body>
+</html>
